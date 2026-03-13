@@ -12,12 +12,12 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Username and password are required' });
         }
 
-        const [rows] = await pool.query('SELECT * FROM admins WHERE username = ?', [username]);
-        if (rows.length === 0) {
+        const result = await pool.query('SELECT * FROM admins WHERE username = $1', [username]);
+        if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        const admin = rows[0];
+        const admin = result.rows[0];
         const isValid = await bcrypt.compare(password, admin.password);
         if (!isValid) {
             return res.status(401).json({ error: 'Invalid credentials' });
@@ -45,14 +45,14 @@ router.post('/register', async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await pool.query(
-            'INSERT INTO admins (username, password) VALUES (?, ?)',
+        const result = await pool.query(
+            'INSERT INTO admins (username, password) VALUES ($1, $2) RETURNING id, username',
             [username, hashedPassword]
         );
 
-        res.status(201).json({ id: result.insertId, username });
+        res.status(201).json({ id: result.rows[0].id, username: result.rows[0].username });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === '23505') {
             return res.status(409).json({ error: 'Username already exists' });
         }
         console.error('Register error:', error);

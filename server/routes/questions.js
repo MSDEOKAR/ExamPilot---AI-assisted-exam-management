@@ -3,7 +3,6 @@ const router = express.Router();
 const pool = require('../config/db');
 const upload = require('../middleware/upload');
 const authMiddleware = require('../middleware/auth');
-// const { extractText } = require('../utils/ocr');
 const { tagQuestion, detectDifficulty, suggestAnswer, splitQuestions, parseAnswerKey } = require('../utils/ai');
 const path = require('path');
 
@@ -12,15 +11,14 @@ router.post('/', authMiddleware, upload.fields([
     { name: 'questionImage', maxCount: 1 },
     { name: 'optionImages', maxCount: 10 }
 ]), async (req, res) => {
-    const conn = await pool.getConnection();
+    const client = await pool.connect();
     try {
-        await conn.beginTransaction();
+        await client.query('BEGIN');
 
         let { question_text, exam_id, options, correct_option, difficulty, tags } = req.body;
         let question_image = null;
         let ocr_text = null;
 
-        // Handle question image + OCR
         if (req.files && req.files.questionImage) {
             question_image = req.files.questionImage[0].filename;
             const imagePath = path.join(__dirname, '..', 'uploads', question_image);
@@ -30,19 +28,16 @@ router.post('/', authMiddleware, upload.fields([
             }
         }
 
-        // AI analysis
         const textForAnalysis = question_text || ocr_text || '';
         if (!tags) tags = tagQuestion(textForAnalysis).join(', ');
         if (!difficulty) difficulty = detectDifficulty(textForAnalysis);
 
-        // Insert question
-        const [qResult] = await conn.query(
-            'INSERT INTO questions (exam_id, question_text, question_image, ocr_text, difficulty, tags) VALUES (?, ?, ?, ?, ?, ?)',
+        const qResult = await client.query(
+            'INSERT INTO questions (exam_id, question_text, question_image, ocr_text, difficulty, tags) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
             [exam_id || null, question_text || null, question_image, ocr_text, difficulty, tags]
         );
-        const questionId = qResult.insertId;
+        const questionId = qResult.rows[0].id;
 
-        // Parse and insert options
         let parsedOptions = [];
         if (typeof options === 'string') {
             try { parsedOptions = JSON.parse(options); } catch (e) { parsedOptions = []; }
@@ -56,18 +51,17 @@ router.post('/', authMiddleware, upload.fields([
             const opt = parsedOptions[i];
             const optImage = optionImages[i] ? optionImages[i].filename : (opt.option_image || null);
             const isCorrect = (correct_option !== undefined && correct_option !== '' && correct_option !== null)
-                ? (parseInt(correct_option) === i ? 1 : 0)
-                : (opt.is_correct ? 1 : 0);
+                ? (parseInt(correct_option) === i)
+                : (opt.is_correct ? true : false);
 
-            await conn.query(
-                'INSERT INTO options (question_id, option_text, option_image, is_correct, option_order) VALUES (?, ?, ?, ?, ?)',
+            await client.query(
+                'INSERT INTO options (question_id, option_text, option_image, is_correct, option_order) VALUES ($1, $2, $3, $4, $5)',
                 [questionId, opt.option_text || opt.text || null, optImage, isCorrect, i]
             );
         }
 
-        await conn.commit();
+        await client.query('COMMIT');
 
-        // AI suggestion for answer
         const optionTexts = parsedOptions.map(o => o.option_text || o.text || '');
         const aiSuggestedAnswer = suggestAnswer(textForAnalysis, optionTexts);
 
@@ -82,41 +76,38 @@ router.post('/', authMiddleware, upload.fields([
             options: parsedOptions
         });
     } catch (error) {
-        await conn.rollback();
+        await client.query('ROLLBACK');
         console.error('Create question error:', error);
         res.status(500).json({ error: 'Server error' });
     } finally {
-        conn.release();
+        client.release();
     }
 });
-
-// OCR endpoint removed - replaced with batch-split text endpoint
 
 // GET /api/questions — List all questions
 router.get('/', async (req, res) => {
     try {
         const { exam_id } = req.query;
-        let query = `SELECT q.*, GROUP_CONCAT(o.id ORDER BY o.option_order) as option_ids
+        let query = `SELECT q.*, STRING_AGG(o.id::text, ',' ORDER BY o.option_order) as option_ids
                  FROM questions q LEFT JOIN options o ON q.id = o.question_id`;
         const params = [];
 
         if (exam_id) {
-            query += ' WHERE q.exam_id = ?';
+            query += ' WHERE q.exam_id = $1';
             params.push(exam_id);
         }
 
         query += ' GROUP BY q.id ORDER BY q.created_at DESC';
-        const [questions] = await pool.query(query, params);
+        const result = await pool.query(query, params);
 
-        // Fetch options for each question
-        for (let q of questions) {
-            const [opts] = await pool.query(
-                'SELECT * FROM options WHERE question_id = ? ORDER BY option_order', [q.id]
+        for (let q of result.rows) {
+            const opts = await pool.query(
+                'SELECT * FROM options WHERE question_id = $1 ORDER BY option_order', [q.id]
             );
-            q.options = opts;
+            q.options = opts.rows;
         }
 
-        res.json(questions);
+        res.json(result.rows);
     } catch (error) {
         console.error('List questions error:', error);
         res.status(500).json({ error: 'Server error' });
@@ -126,15 +117,15 @@ router.get('/', async (req, res) => {
 // GET /api/questions/:id
 router.get('/:id', async (req, res) => {
     try {
-        const [questions] = await pool.query('SELECT * FROM questions WHERE id = ?', [req.params.id]);
-        if (questions.length === 0) {
+        const result = await pool.query('SELECT * FROM questions WHERE id = $1', [req.params.id]);
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Question not found' });
         }
-        const question = questions[0];
-        const [options] = await pool.query(
-            'SELECT * FROM options WHERE question_id = ? ORDER BY option_order', [question.id]
+        const question = result.rows[0];
+        const options = await pool.query(
+            'SELECT * FROM options WHERE question_id = $1 ORDER BY option_order', [question.id]
         );
-        question.options = options;
+        question.options = options.rows;
         res.json(question);
     } catch (error) {
         console.error('Get question error:', error);
@@ -147,9 +138,9 @@ router.put('/:id', authMiddleware, upload.fields([
     { name: 'questionImage', maxCount: 1 },
     { name: 'optionImages', maxCount: 10 }
 ]), async (req, res) => {
-    const conn = await pool.getConnection();
+    const client = await pool.connect();
     try {
-        await conn.beginTransaction();
+        await client.query('BEGIN');
 
         let { question_text, exam_id, options, correct_option, difficulty, tags } = req.body;
         let question_image = req.body.existing_question_image || null;
@@ -161,46 +152,45 @@ router.put('/:id', authMiddleware, upload.fields([
             ocr_text = await extractText(imagePath);
         }
 
-        await conn.query(
-            'UPDATE questions SET question_text = ?, question_image = COALESCE(?, question_image), ocr_text = COALESCE(?, ocr_text), difficulty = ?, tags = ?, exam_id = ? WHERE id = ?',
+        await client.query(
+            'UPDATE questions SET question_text = $1, question_image = COALESCE($2, question_image), ocr_text = COALESCE($3, ocr_text), difficulty = $4, tags = $5, exam_id = $6 WHERE id = $7',
             [question_text, question_image, ocr_text, difficulty || 'medium', tags || 'General', exam_id || null, req.params.id]
         );
 
-        // Update options if provided
         if (options) {
             let parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
-            await conn.query('DELETE FROM options WHERE question_id = ?', [req.params.id]);
+            await client.query('DELETE FROM options WHERE question_id = $1', [req.params.id]);
 
             const optionImages = req.files && req.files.optionImages ? req.files.optionImages : [];
             for (let i = 0; i < parsedOptions.length; i++) {
                 const opt = parsedOptions[i];
                 const optImage = optionImages[i] ? optionImages[i].filename : (opt.option_image || null);
                 const isCorrect = (correct_option !== undefined && correct_option !== '' && correct_option !== null)
-                    ? (parseInt(correct_option) === i ? 1 : 0)
-                    : (opt.is_correct ? 1 : 0);
+                    ? (parseInt(correct_option) === i)
+                    : (opt.is_correct ? true : false);
 
-                await conn.query(
-                    'INSERT INTO options (question_id, option_text, option_image, is_correct, option_order) VALUES (?, ?, ?, ?, ?)',
+                await client.query(
+                    'INSERT INTO options (question_id, option_text, option_image, is_correct, option_order) VALUES ($1, $2, $3, $4, $5)',
                     [req.params.id, opt.option_text || opt.text || null, optImage, isCorrect, i]
                 );
             }
         }
 
-        await conn.commit();
+        await client.query('COMMIT');
         res.json({ message: 'Question updated successfully' });
     } catch (error) {
-        await conn.rollback();
+        await client.query('ROLLBACK');
         console.error('Update question error:', error);
         res.status(500).json({ error: 'Server error' });
     } finally {
-        conn.release();
+        client.release();
     }
 });
 
 // DELETE /api/questions/:id
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
-        await pool.query('DELETE FROM questions WHERE id = ?', [req.params.id]);
+        await pool.query('DELETE FROM questions WHERE id = $1', [req.params.id]);
         res.json({ message: 'Question deleted successfully' });
     } catch (error) {
         console.error('Delete question error:', error);
@@ -208,7 +198,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// POST /api/questions/batch-split — Split and analyze raw text (no OCR)
+// POST /api/questions/batch-split — Split and analyze raw text
 router.post('/batch-split', authMiddleware, async (req, res) => {
     try {
         const { text, answerKey } = req.body;
@@ -216,21 +206,14 @@ router.post('/batch-split', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'No text provided' });
         }
 
-        // 1. Detect and split multiple questions
         const extractedQuestions = splitQuestions(text);
-
-        // 2. Parse answer key if provided
         const keyMap = answerKey ? parseAnswerKey(answerKey) : {};
-        console.log(`[AI] Batch-split detected ${extractedQuestions.length} questions. Answer key: ${Object.keys(keyMap).length} mapped.`);
 
-        // 3. Enrich each question with AI tags, difficulty, and suggested answer
         const questions = extractedQuestions.map((q, index) => {
-            const qNum = index + 1; // Pair based on sequence
+            const qNum = index + 1;
             const tags = tagQuestion(q.question_text);
             const difficulty = detectDifficulty(q.question_text);
 
-            // Priority 1: Answer Key match
-            // Priority 2: In-text marker suggestion (existing logic)
             let suggestedAnswer = suggestAnswer(q.question_text, q.options);
             if (keyMap[qNum] !== undefined) {
                 suggestedAnswer = keyMap[qNum];
