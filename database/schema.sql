@@ -1,8 +1,11 @@
--- AI-Powered Mock Exam Platform Database Schema (PostgreSQL)
+-- AI-Powered Mock Exam Platform Database Schema (MySQL)
+
+CREATE DATABASE IF NOT EXISTS mock_exam_db;
+USE mock_exam_db;
 
 -- Admins table
 CREATE TABLE IF NOT EXISTS admins (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -10,7 +13,7 @@ CREATE TABLE IF NOT EXISTS admins (
 
 -- Exams table
 CREATE TABLE IF NOT EXISTS exams (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   description TEXT,
   duration INT NOT NULL DEFAULT 60,
@@ -18,16 +21,16 @@ CREATE TABLE IF NOT EXISTS exams (
   negative_marking DECIMAL(3,2) DEFAULT 0.00,
   marks_per_question DECIMAL(3,2) DEFAULT 1.00,
   status VARCHAR(20) DEFAULT 'draft',
-  scheduled_at TIMESTAMP,
+  scheduled_at DATETIME,
   created_by INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
 );
 
 -- Questions table
 CREATE TABLE IF NOT EXISTS questions (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   exam_id INT,
   question_text TEXT,
   question_image VARCHAR(500),
@@ -41,18 +44,18 @@ CREATE TABLE IF NOT EXISTS questions (
 
 -- Options table
 CREATE TABLE IF NOT EXISTS options (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   question_id INT NOT NULL,
   option_text TEXT,
   option_image VARCHAR(500),
-  is_correct BOOLEAN DEFAULT FALSE,
+  is_correct TINYINT(1) DEFAULT 0,
   option_order INT DEFAULT 0,
   FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
 );
 
 -- Students table
 CREATE TABLE IF NOT EXISTS students (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(200) NOT NULL,
   email VARCHAR(200) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -60,7 +63,7 @@ CREATE TABLE IF NOT EXISTS students (
 
 -- Results table
 CREATE TABLE IF NOT EXISTS results (
-  id SERIAL PRIMARY KEY,
+  id INT AUTO_INCREMENT PRIMARY KEY,
   student_id INT NOT NULL,
   exam_id INT NOT NULL,
   score DECIMAL(6,2) DEFAULT 0,
@@ -68,9 +71,9 @@ CREATE TABLE IF NOT EXISTS results (
   correct_count INT DEFAULT 0,
   wrong_count INT DEFAULT 0,
   unanswered_count INT DEFAULT 0,
-  answers JSONB,
-  started_at TIMESTAMP,
-  submitted_at TIMESTAMP,
+  answers JSON,
+  started_at DATETIME,
+  submitted_at DATETIME,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
   FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE

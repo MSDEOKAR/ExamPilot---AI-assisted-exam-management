@@ -10,17 +10,17 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'Name and email are required' });
         }
 
-        const existing = await pool.query('SELECT * FROM students WHERE email = $1', [email]);
-        if (existing.rows.length > 0) {
-            return res.json({ id: existing.rows[0].id, name: existing.rows[0].name, email: existing.rows[0].email });
+        const [existing] = await pool.query('SELECT * FROM students WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            return res.json({ id: existing[0].id, name: existing[0].name, email: existing[0].email });
         }
 
-        const result = await pool.query(
-            'INSERT INTO students (name, email) VALUES ($1, $2) RETURNING id, name, email',
+        const [result] = await pool.query(
+            'INSERT INTO students (name, email) VALUES (?, ?)',
             [name, email]
         );
 
-        res.status(201).json({ id: result.rows[0].id, name: result.rows[0].name, email: result.rows[0].email });
+        res.status(201).json({ id: result.insertId, name, email });
     } catch (error) {
         console.error('Register student error:', error);
         res.status(500).json({ error: 'Server error' });
@@ -30,14 +30,14 @@ router.post('/register', async (req, res) => {
 // GET /api/students/exams — Get available active exams
 router.get('/exams', async (req, res) => {
     try {
-        const result = await pool.query(`
+        const [exams] = await pool.query(`
       SELECT e.id, e.title, e.description, e.duration, e.total_questions, e.negative_marking, e.marks_per_question, e.status,
         (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count
       FROM exams e 
       WHERE e.status = 'active' 
       ORDER BY e.created_at DESC
     `);
-        res.json(result.rows);
+        res.json(exams);
     } catch (error) {
         console.error('List exams error:', error);
         res.status(500).json({ error: 'Server error' });
@@ -49,32 +49,32 @@ router.get('/exams/:id/take', async (req, res) => {
     try {
         const { student_id } = req.query;
 
-        const exams = await pool.query('SELECT * FROM exams WHERE id = $1 AND status = $2', [req.params.id, 'active']);
-        if (exams.rows.length === 0) {
+        const [exams] = await pool.query('SELECT * FROM exams WHERE id = ? AND status = ?', [req.params.id, 'active']);
+        if (exams.length === 0) {
             return res.status(404).json({ error: 'Exam not found or not active' });
         }
 
         if (student_id) {
-            const existingResult = await pool.query(
-                'SELECT * FROM results WHERE student_id = $1 AND exam_id = $2', [student_id, req.params.id]
+            const [existingResult] = await pool.query(
+                'SELECT * FROM results WHERE student_id = ? AND exam_id = ?', [student_id, req.params.id]
             );
-            if (existingResult.rows.length > 0) {
-                return res.status(400).json({ error: 'You have already taken this exam', result_id: existingResult.rows[0].id });
+            if (existingResult.length > 0) {
+                return res.status(400).json({ error: 'You have already taken this exam', result_id: existingResult[0].id });
             }
         }
 
-        const exam = exams.rows[0];
-        const questions = await pool.query(
-            'SELECT id, question_text, question_image, ocr_text FROM questions WHERE exam_id = $1 ORDER BY question_order, id',
+        const exam = exams[0];
+        const [questions] = await pool.query(
+            'SELECT id, question_text, question_image, ocr_text FROM questions WHERE exam_id = ? ORDER BY question_order, id',
             [exam.id]
         );
 
-        for (let q of questions.rows) {
-            const opts = await pool.query(
-                'SELECT id, option_text, option_image, option_order FROM options WHERE question_id = $1 ORDER BY option_order',
+        for (let q of questions) {
+            const [opts] = await pool.query(
+                'SELECT id, option_text, option_image, option_order FROM options WHERE question_id = ? ORDER BY option_order',
                 [q.id]
             );
-            q.options = opts.rows;
+            q.options = opts;
         }
 
         res.json({
@@ -87,7 +87,7 @@ router.get('/exams/:id/take', async (req, res) => {
                 negative_marking: parseFloat(exam.negative_marking),
                 marks_per_question: parseFloat(exam.marks_per_question)
             },
-            questions: questions.rows
+            questions
         });
     } catch (error) {
         console.error('Take exam error:', error);
@@ -104,26 +104,26 @@ router.post('/exams/:id/submit', async (req, res) => {
             return res.status(400).json({ error: 'student_id and answers are required' });
         }
 
-        const students = await pool.query('SELECT id FROM students WHERE id = $1', [student_id]);
-        if (students.rows.length === 0) {
+        const [students] = await pool.query('SELECT id FROM students WHERE id = ?', [student_id]);
+        if (students.length === 0) {
             return res.status(404).json({ error: 'Student profile not found. Please register again.' });
         }
 
-        const existingResult = await pool.query(
-            'SELECT * FROM results WHERE student_id = $1 AND exam_id = $2', [student_id, req.params.id]
+        const [existingResult] = await pool.query(
+            'SELECT * FROM results WHERE student_id = ? AND exam_id = ?', [student_id, req.params.id]
         );
-        if (existingResult.rows.length > 0) {
-            return res.status(400).json({ error: 'You have already submitted this exam.', result_id: existingResult.rows[0].id });
+        if (existingResult.length > 0) {
+            return res.status(400).json({ error: 'You have already submitted this exam.', result_id: existingResult[0].id });
         }
 
-        const exams = await pool.query('SELECT * FROM exams WHERE id = $1', [req.params.id]);
-        if (exams.rows.length === 0) {
+        const [exams] = await pool.query('SELECT * FROM exams WHERE id = ?', [req.params.id]);
+        if (exams.length === 0) {
             return res.status(404).json({ error: 'Exam not found' });
         }
-        const exam = exams.rows[0];
+        const exam = exams[0];
 
-        const questions = await pool.query(
-            'SELECT q.id, o.id as correct_option_id FROM questions q JOIN options o ON q.id = o.question_id WHERE q.exam_id = $1 AND o.is_correct = true',
+        const [questions] = await pool.query(
+            'SELECT q.id, o.id as correct_option_id FROM questions q JOIN options o ON q.id = o.question_id WHERE q.exam_id = ? AND o.is_correct = 1',
             [req.params.id]
         );
 
@@ -132,12 +132,12 @@ router.post('/exams/:id/submit', async (req, res) => {
         let unansweredCount = 0;
         const detailedAnswers = {};
 
-        const allQuestions = await pool.query('SELECT id FROM questions WHERE exam_id = $1', [req.params.id]);
+        const [allQuestions] = await pool.query('SELECT id FROM questions WHERE exam_id = ?', [req.params.id]);
 
-        for (const q of allQuestions.rows) {
+        for (const q of allQuestions) {
             const questionId = q.id.toString();
             const selectedOptionId = answers[questionId];
-            const correctOption = questions.rows.find(cq => cq.id === q.id);
+            const correctOption = questions.find(cq => cq.id === q.id);
 
             if (!selectedOptionId || selectedOptionId === null) {
                 unansweredCount++;
@@ -157,21 +157,21 @@ router.post('/exams/:id/submit', async (req, res) => {
         const marksPerQuestion = parseFloat(exam.marks_per_question) || 1;
         const negativeMarking = parseFloat(exam.negative_marking) || 0;
         const score = (correctCount * marksPerQuestion) - (wrongCount * negativeMarking);
-        const totalMarks = allQuestions.rows.length * marksPerQuestion;
+        const totalMarks = allQuestions.length * marksPerQuestion;
 
         let finalScore = Math.max(0, score);
         if (isNaN(finalScore)) finalScore = 0;
         let finalTotalMarks = totalMarks;
-        if (isNaN(finalTotalMarks)) finalTotalMarks = allQuestions.rows.length * 1;
+        if (isNaN(finalTotalMarks)) finalTotalMarks = allQuestions.length * 1;
 
-        const result = await pool.query(
+        const [result] = await pool.query(
             `INSERT INTO results (student_id, exam_id, score, total_marks, correct_count, wrong_count, unanswered_count, answers, started_at, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             [student_id, req.params.id, finalScore, finalTotalMarks, correctCount, wrongCount, unansweredCount, JSON.stringify(detailedAnswers), started_at ? new Date(started_at).toISOString().slice(0, 19).replace('T', ' ') : null]
         );
 
         res.json({
-            result_id: result.rows[0].id,
+            result_id: result.insertId,
             score: Math.max(0, score),
             total_marks: totalMarks,
             correct_count: correctCount,
