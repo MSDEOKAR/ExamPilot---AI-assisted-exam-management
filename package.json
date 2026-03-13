@@ -1,0 +1,14 @@
+{
+  "name": "exampilot",
+  "version": "1.0.0",
+  "description": "AI-Assisted Exam Management System",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "dev": "cd server && npm run dev"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
