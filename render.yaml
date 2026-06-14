@@ -2,7 +2,7 @@ services:
   - type: web
     name: exampilot
     env: node
-    buildCommand: npm install && npm install --prefix server && cd client && npm install && npx vite build
+    buildCommand: npm install && npm install --prefix server && cd client && npm install --include=dev && npm run build
     startCommand: cd server && node server.js
     envVars:
       - key: NODE_ENV
