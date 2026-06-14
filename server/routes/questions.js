@@ -56,13 +56,13 @@ router.post('/', authMiddleware, upload.fields([
 
             await conn.query(
                 'INSERT INTO options (question_id, option_text, option_image, is_correct, option_order) VALUES (?, ?, ?, ?, ?)',
-                [questionId, opt.option_text || opt.text || null, optImage, isCorrect, i]
+                [questionId, (typeof opt === 'object' && opt !== null) ? (opt.option_text || opt.text || null) : (opt || null), optImage, isCorrect, i]
             );
         }
 
         await conn.commit();
 
-        const optionTexts = parsedOptions.map(o => o.option_text || o.text || '');
+        const optionTexts = parsedOptions.map(o => (typeof o === 'object' && o !== null) ? (o.option_text || o.text || '') : (o || ''));
         const aiSuggestedAnswer = suggestAnswer(textForAnalysis, optionTexts);
 
         res.status(201).json({
@@ -171,7 +171,7 @@ router.put('/:id', authMiddleware, upload.fields([
 
                 await conn.query(
                     'INSERT INTO options (question_id, option_text, option_image, is_correct, option_order) VALUES (?, ?, ?, ?, ?)',
-                    [req.params.id, opt.option_text || opt.text || null, optImage, isCorrect, i]
+                    [req.params.id, (typeof opt === 'object' && opt !== null) ? (opt.option_text || opt.text || null) : (opt || null), optImage, isCorrect, i]
                 );
             }
         }
