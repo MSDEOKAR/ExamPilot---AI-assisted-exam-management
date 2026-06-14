@@ -6,9 +6,12 @@
     "install:all": "cd server && npm install && cd ../client && npm install",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
-    "dev": "cd server && npm run dev"
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\""
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
   }
 }
