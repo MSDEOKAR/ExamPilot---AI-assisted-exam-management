@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminLayout({ children, title }) {
     const { admin, logout } = useAuth();
     const navigate = useNavigate();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const handleLogout = () => {
         logout();
@@ -19,19 +21,58 @@ export default function AdminLayout({ children, title }) {
 
     return (
         <div className="admin-layout">
+            {/* Mobile Header */}
             <header className="mobile-admin-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, fontSize: '18px', background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    🧠 ExamAI Admin
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button
+                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '6px 10px', fontSize: '16px', background: 'var(--bg-glass)', border: '1px solid var(--border-glass)' }}
+                    >
+                        ☰
+                    </button>
+                    <div style={{ fontWeight: 800, fontSize: '18px', background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        🧠 ExamAI Admin
+                    </div>
                 </div>
                 <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', fontSize: '12px' }}>
                     🚪 Logout
                 </button>
             </header>
 
-            <aside className="sidebar">
+            {/* Sidebar Overlay (Mobile) */}
+            {sidebarOpen && (
+                <div
+                    className="sidebar-overlay"
+                    onClick={() => setSidebarOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.5)',
+                        zIndex: 40,
+                        backdropFilter: 'blur(4px)',
+                        animation: 'fadeIn 0.2s ease'
+                    }}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
                 <div className="sidebar-brand">
-                    <h2>🧠 ExamAI</h2>
-                    <p>Admin Panel</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h2>🧠 ExamAI</h2>
+                            <p>Admin Panel</p>
+                        </div>
+                        {/* Close button inside sidebar on mobile */}
+                        <button
+                            className="btn btn-secondary btn-sm mobile-close-btn"
+                            onClick={() => setSidebarOpen(false)}
+                            style={{ display: 'none', padding: '4px 8px', fontSize: '12px' }}
+                        >
+                            ✕
+                        </button>
+                    </div>
                 </div>
                 <nav className="sidebar-nav">
                     {links.map((link) => (
@@ -39,6 +80,7 @@ export default function AdminLayout({ children, title }) {
                             key={link.to}
                             to={link.to}
                             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                            onClick={() => setSidebarOpen(false)} // Close sidebar when link is clicked
                         >
                             <span className="link-icon">{link.icon}</span>
                             {link.label}
