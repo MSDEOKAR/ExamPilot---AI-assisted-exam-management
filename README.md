@@ -9,6 +9,12 @@
 
 AI-Powered exam management system with automated question extraction, intelligent tagging, and seamless exam conduction.
 
+## Live Demo
+
+You can access the deployed application here:
+* **Student Portal**: [https://exampilot-9kny.onrender.com/](https://exampilot-9kny.onrender.com/)
+* **Admin Dashboard**: [https://exampilot-9kny.onrender.com/admin/login](https://exampilot-9kny.onrender.com/admin/login)
+
 ## Features
 
 - **AI-Powered Question Processing**
