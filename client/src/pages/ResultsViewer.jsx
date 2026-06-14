@@ -71,8 +71,8 @@ export default function ResultsViewer() {
                                                 border: `1px solid ${opt.is_correct ? 'var(--success)' : ans.selected === opt.id ? 'var(--error)' : 'var(--border-glass)'}`,
                                                 display: 'flex', alignItems: 'center', gap: '8px'
                                             }}>
-                                                {opt.is_correct && <span>✅</span>}
-                                                {ans.selected === opt.id && !opt.is_correct && <span>❌</span>}
+                                                {opt.is_correct ? <span>✅</span> : null}
+                                                {(ans.selected === opt.id && !opt.is_correct) ? <span>❌</span> : null}
                                                 {opt.option_image && <img src={`${API_URL}/uploads/${opt.option_image}`} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />}
                                                 {opt.option_text || '(Image option)'}
                                             </div>

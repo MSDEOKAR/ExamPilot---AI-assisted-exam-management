@@ -139,8 +139,8 @@ export default function ExamResult() {
                                                     )}
                                                     {opt.option_text && <div className="option-text">{opt.option_text}</div>}
                                                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
-                                                        {opt.is_correct && '✅ Correct Answer'}
-                                                        {ans.selected === opt.id && !opt.is_correct && '❌ Your Answer'}
+                                                        {opt.is_correct ? '✅ Correct Answer' : null}
+                                                        {(ans.selected === opt.id && !opt.is_correct) ? '❌ Your Answer' : null}
                                                     </div>
                                                 </div>
                                             );
