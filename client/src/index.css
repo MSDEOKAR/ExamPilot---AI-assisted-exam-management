@@ -563,6 +563,10 @@ tr:hover td {
   min-height: 100vh;
 }
 
+.mobile-admin-header {
+  display: none;
+}
+
 .sidebar {
   width: 260px;
   background: var(--bg-secondary);
@@ -1185,12 +1189,30 @@ tr:hover td {
    RESPONSIVE
    ================================================ */
 @media (max-width: 768px) {
+  .mobile-admin-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-glass);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
+  }
+
+  .admin-layout {
+    flex-direction: column;
+  }
+
   .sidebar {
     transform: translateX(-100%);
   }
 
   .admin-content {
     margin-left: 0;
+    padding-top: 16px;
   }
 
   .page-title {

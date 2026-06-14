@@ -19,6 +19,15 @@ export default function AdminLayout({ children, title }) {
 
     return (
         <div className="admin-layout">
+            <header className="mobile-admin-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, fontSize: '18px', background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    🧠 ExamAI Admin
+                </div>
+                <button onClick={handleLogout} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                    🚪 Logout
+                </button>
+            </header>
+
             <aside className="sidebar">
                 <div className="sidebar-brand">
                     <h2>🧠 ExamAI</h2>

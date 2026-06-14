@@ -42,6 +42,16 @@ export default function StudentEntry() {
         navigate(`/exam/${examId}`);
     };
 
+    const handleStudentLogout = () => {
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('studentName');
+        setStudentId('');
+        setStudentName('');
+        setRegistered(false);
+        setName('');
+        setEmail('');
+    };
+
     return (
         <div className="student-page">
             {/* Navbar */}
@@ -50,8 +60,19 @@ export default function StudentEntry() {
                     <div className="brand-icon">🧠</div>
                     ExamAI
                 </div>
-                <div className="navbar-links">
-                    {registered && <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>👋 Welcome, {studentName}</span>}
+                <div className="navbar-links" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    {registered && (
+                        <>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>👋 Welcome, {studentName}</span>
+                            <button
+                                onClick={handleStudentLogout}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--bg-glass)', border: '1px solid var(--border-glass)' }}
+                            >
+                                🚪 Logout
+                            </button>
+                        </>
+                    )}
                     <Link to="/admin/login" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Admin Login</Link>
                 </div>
             </nav>
