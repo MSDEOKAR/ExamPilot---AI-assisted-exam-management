@@ -40,11 +40,11 @@ export default function QuestionUpload() {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [selectedExam]);
 
     const loadData = async () => {
         try {
-            const [qRes, eRes] = await Promise.all([getQuestions(), getExams()]);
+            const [qRes, eRes] = await Promise.all([getQuestions(selectedExam), getExams()]);
             setQuestions(qRes.data);
             setExams(eRes.data);
         } catch (err) {

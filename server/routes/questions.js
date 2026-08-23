@@ -33,9 +33,18 @@ router.post('/', authMiddleware, upload.fields([
         if (!tags) tags = tagQuestion(textForAnalysis).join(', ');
         if (!difficulty) difficulty = detectDifficulty(textForAnalysis);
 
+        let validExamId = null;
+        if (exam_id && exam_id !== 'null' && exam_id !== 'undefined') {
+            const parsedId = parseInt(exam_id, 10);
+            if (!isNaN(parsedId)) {
+                const [eRows] = await conn.query('SELECT id FROM exams WHERE id = ?', [parsedId]);
+                if (eRows.length > 0) validExamId = parsedId;
+            }
+        }
+
         const [qResult] = await conn.query(
             'INSERT INTO questions (exam_id, question_text, question_image, ocr_text, difficulty, tags) VALUES (?, ?, ?, ?, ?, ?)',
-            [exam_id || null, question_text || null, question_image, ocr_text, difficulty, tags]
+            [validExamId, question_text || null, question_image, ocr_text, difficulty, tags]
         );
         const questionId = qResult.insertId;
 
@@ -254,11 +263,13 @@ router.post('/batch', authMiddleware, async (req, res) => {
             if (!questionText) continue;
 
             let targetExamId = q.exam_id || exam_id || null;
-            if (!targetExamId || targetExamId === 'null' || targetExamId === 'undefined') {
-                targetExamId = null;
-            } else {
-                targetExamId = parseInt(targetExamId, 10);
-                if (isNaN(targetExamId)) targetExamId = null;
+            let validExamId = null;
+            if (targetExamId && targetExamId !== 'null' && targetExamId !== 'undefined') {
+                const parsedId = parseInt(targetExamId, 10);
+                if (!isNaN(parsedId)) {
+                    const [eRows] = await conn.query('SELECT id FROM exams WHERE id = ?', [parsedId]);
+                    if (eRows.length > 0) validExamId = parsedId;
+                }
             }
 
             const tags = Array.isArray(q.ai_tags) ? q.ai_tags.join(', ') : (q.tags || 'General');
@@ -266,7 +277,7 @@ router.post('/batch', authMiddleware, async (req, res) => {
 
             const [rows, header] = await conn.query(
                 'INSERT INTO questions (exam_id, question_text, difficulty, tags) VALUES (?, ?, ?, ?)',
-                [targetExamId, questionText, difficulty, tags]
+                [validExamId, questionText, difficulty, tags]
             );
 
             let questionId = header && header.insertId ? header.insertId : null;
