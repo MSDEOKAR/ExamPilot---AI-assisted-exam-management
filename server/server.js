@@ -27,9 +27,28 @@ app.use('/api/exams', require('./routes/exams'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/results', require('./routes/results'));
 
-// Health check
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check with DB connection diagnostic
+app.get('/api/health', async (req, res) => {
+    let dbStatus = 'disconnected';
+    let dbError = null;
+    try {
+        const pool = require('./config/db');
+        await pool.query('SELECT 1');
+        dbStatus = 'connected';
+    } catch (err) {
+        dbError = err.message;
+    }
+
+    const isConnected = dbStatus === 'connected';
+    res.status(isConnected ? 200 : 500).json({
+        status: isConnected ? 'ok' : 'error',
+        database: {
+            status: dbStatus,
+            host: process.env.DB_HOST || 'localhost',
+            error: dbError
+        },
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Database init endpoint (call once to setup)
