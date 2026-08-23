@@ -37,6 +37,9 @@ router.get('/exams', async (req, res) => {
       WHERE e.status = 'active' 
       ORDER BY e.created_at DESC
     `);
+        for (let e of exams) {
+            e.question_count = parseInt(e.question_count || 0, 10);
+        }
         res.json(exams);
     } catch (error) {
         console.error('List exams error:', error);

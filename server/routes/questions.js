@@ -98,16 +98,15 @@ router.post('/', authMiddleware, upload.fields([
 router.get('/', async (req, res) => {
     try {
         const { exam_id } = req.query;
-        let query = `SELECT q.*, GROUP_CONCAT(o.id ORDER BY o.option_order) as option_ids
-                 FROM questions q LEFT JOIN options o ON q.id = o.question_id`;
+        let query = 'SELECT * FROM questions';
         const params = [];
 
         if (exam_id) {
-            query += ' WHERE q.exam_id = ?';
+            query += ' WHERE exam_id = ?';
             params.push(exam_id);
         }
 
-        query += ' GROUP BY q.id ORDER BY q.created_at DESC';
+        query += ' ORDER BY created_at DESC';
         const [questions] = await pool.query(query, params);
 
         for (let q of questions) {

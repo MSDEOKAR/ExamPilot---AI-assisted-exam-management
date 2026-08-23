@@ -80,13 +80,13 @@ router.get('/stats/dashboard', authMiddleware, async (req, res) => {
     `);
 
         res.json({
-            total_exams: examCount[0].count,
-            total_questions: questionCount[0].count,
-            total_students: studentCount[0].count,
-            total_attempts: resultCount[0].count,
-            avg_score: avgScore[0].avg_score ? parseFloat(avgScore[0].avg_score).toFixed(2) : 0,
-            avg_correct: avgScore[0].avg_correct ? parseFloat(avgScore[0].avg_correct).toFixed(1) : 0,
-            recent_results: recentResults
+            total_exams: parseInt(examCount[0]?.count || 0, 10),
+            total_questions: parseInt(questionCount[0]?.count || 0, 10),
+            total_students: parseInt(studentCount[0]?.count || 0, 10),
+            total_attempts: parseInt(resultCount[0]?.count || 0, 10),
+            avg_score: avgScore[0]?.avg_score ? parseFloat(avgScore[0].avg_score).toFixed(2) : 0,
+            avg_correct: avgScore[0]?.avg_correct ? parseFloat(avgScore[0].avg_correct).toFixed(1) : 0,
+            recent_results: recentResults || []
         });
     } catch (error) {
         console.error('Dashboard stats error:', error);

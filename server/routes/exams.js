@@ -42,6 +42,10 @@ router.get('/', async (req, res) => {
         (SELECT COUNT(*) FROM results WHERE exam_id = e.id) as attempt_count
       FROM exams e ORDER BY e.created_at DESC
     `);
+        for (let e of exams) {
+            e.question_count = parseInt(e.question_count || 0, 10);
+            e.attempt_count = parseInt(e.attempt_count || 0, 10);
+        }
         res.json(exams);
     } catch (error) {
         console.error('List exams error:', error);
