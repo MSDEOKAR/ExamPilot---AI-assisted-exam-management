@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getExams, createExam, updateExam, deleteExam, startExam, completeExam, getQuestions, addQuestionsToExam } from '../services/api';
+import { getExams, createExam, updateExam, deleteExam, startExam, completeExam, getQuestions, addQuestionsToExam, removeQuestionFromExam } from '../services/api';
 
 export default function ExamManager() {
     const [exams, setExams] = useState([]);
@@ -73,21 +73,71 @@ export default function ExamManager() {
     };
 
     const handleAssignQuestions = async (examId, questionIds) => {
+        const currentExam = exams.find(e => e.id === examId);
+        const maxQuestions = currentExam?.total_questions || 10;
+        const currentAssigned = questions.filter(q => q.exam_id === examId).length;
+        const remainingCapacity = Math.max(0, maxQuestions - currentAssigned);
+
+        if (remainingCapacity <= 0) {
+            setMessage({
+                type: 'warning',
+                text: `⚠️ Exam limit reached! Already assigned ${currentAssigned}/${maxQuestions} questions. Edit exam to increase Total Questions.`
+            });
+            return;
+        }
+
+        const allowedIds = questionIds.slice(0, remainingCapacity);
         try {
-            await addQuestionsToExam(examId, questionIds);
-            setMessage({ type: 'success', text: `✅ ${questionIds.length} question(s) added to exam!` });
+            await addQuestionsToExam(examId, allowedIds);
+            const newCount = currentAssigned + allowedIds.length;
+            if (allowedIds.length < questionIds.length) {
+                setMessage({
+                    type: 'warning',
+                    text: `✅ Added ${allowedIds.length} question(s). Reached limit (${newCount}/${maxQuestions}).`
+                });
+            } else {
+                setMessage({
+                    type: 'success',
+                    text: `✅ ${allowedIds.length} question(s) added! (${newCount}/${maxQuestions} assigned)`
+                });
+            }
             await loadData();
         } catch (err) {
             setMessage({ type: 'error', text: 'Failed to assign questions' });
         }
     };
 
+    const handleRemoveQuestion = async (examId, questionId) => {
+        try {
+            await removeQuestionFromExam(examId, questionId);
+            setMessage({ type: 'success', text: 'Question unassigned from exam.' });
+            await loadData();
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Failed to remove question' });
+        }
+    };
+
     const handleAddAllQuestions = async (examId) => {
-        const unassignedIds = questions.filter(q => !q.exam_id || q.exam_id !== examId).map(q => q.id);
-        if (unassignedIds.length === 0) {
+        const currentExam = exams.find(e => e.id === examId);
+        const maxQuestions = currentExam?.total_questions || 10;
+        const currentAssigned = questions.filter(q => q.exam_id === examId).length;
+        const remainingCapacity = Math.max(0, maxQuestions - currentAssigned);
+
+        if (remainingCapacity <= 0) {
+            setMessage({
+                type: 'warning',
+                text: `⚠️ Exam question limit reached (${currentAssigned}/${maxQuestions} questions assigned).`
+            });
+            return;
+        }
+
+        const unassigned = questions.filter(q => !q.exam_id || q.exam_id !== examId);
+        if (unassigned.length === 0) {
             setMessage({ type: 'info', text: 'No unassigned questions available' });
             return;
         }
+
+        const unassignedIds = unassigned.slice(0, remainingCapacity).map(q => q.id);
         await handleAssignQuestions(examId, unassignedIds);
     };
 
@@ -150,40 +200,103 @@ export default function ExamManager() {
             )}
 
             {/* Assign Questions Modal */}
-            {showAssign && (
-                <div className="modal-overlay" onClick={() => setShowAssign(null)}>
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h2>📎 Assign Questions</h2>
-                            <button className="btn btn-success btn-sm" onClick={() => handleAddAllQuestions(showAssign)}>
-                                ➕ Add All Unassigned
-                            </button>
-                        </div>
-                        {message.text && <div className={`alert alert-${message.type}`} style={{ marginBottom: '16px' }}>{message.text}</div>}
-                        <p style={{ marginBottom: '16px', color: 'var(--text-muted)' }}>Select questions from the bank to add:</p>
-                        {(() => {
-                            const unassigned = questions.filter(q => !q.exam_id || q.exam_id !== showAssign);
-                            if (unassigned.length === 0) return <p>All available questions are assigned!</p>;
-                            return (
-                                <div style={{ maxHeight: '300px', overflow: 'auto' }}>
-                                    {unassigned.map(q => (
-                                        <div key={q.id} className="option-item" onClick={() => handleAssignQuestions(showAssign, [q.id])} style={{ cursor: 'pointer' }}>
-                                            <div className="option-letter">+</div>
-                                            <div className="option-content">
-                                                <div style={{ fontSize: '14px' }}>{q.question_text?.substring(0, 80) || '(Image Question)'}</div>
-                                                <span className={`badge ${q.difficulty === 'easy' ? 'badge-success' : q.difficulty === 'hard' ? 'badge-error' : 'badge-warning'}`} style={{ marginTop: '4px' }}>{q.difficulty}</span>
+            {showAssign && (() => {
+                const currentExam = exams.find(e => e.id === showAssign);
+                const maxQuestions = currentExam?.total_questions || 10;
+                const assignedQuestions = questions.filter(q => q.exam_id === showAssign);
+                const unassignedQuestions = questions.filter(q => !q.exam_id || q.exam_id !== showAssign);
+                const remainingCapacity = Math.max(0, maxQuestions - assignedQuestions.length);
+
+                return (
+                    <div className="modal-overlay" onClick={() => setShowAssign(null)}>
+                        <div className="modal" style={{ maxWidth: '650px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <h2>📎 Manage Exam Questions</h2>
+                                <span className={`badge ${remainingCapacity > 0 ? 'badge-success' : 'badge-warning'}`}>
+                                    {assignedQuestions.length} / {maxQuestions} Questions Assigned
+                                </span>
+                            </div>
+
+                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                                Exam: <strong>{currentExam?.title}</strong> ({remainingCapacity} remaining slot{remainingCapacity === 1 ? '' : 's'})
+                            </p>
+
+                            {message.text && <div className={`alert alert-${message.type}`} style={{ marginBottom: '16px' }}>{message.text}</div>}
+
+                            {/* Section 1: Assigned Questions */}
+                            <div style={{ marginBottom: '24px' }}>
+                                <h4 style={{ fontSize: '14px', marginBottom: '10px', color: 'var(--success)' }}>
+                                    ✅ Currently Assigned ({assignedQuestions.length})
+                                </h4>
+                                {assignedQuestions.length > 0 ? (
+                                    <div style={{ maxHeight: '150px', overflowY: 'auto', background: 'rgba(255, 255, 255, 0.02)', padding: '8px', borderRadius: '8px' }}>
+                                        {assignedQuestions.map(q => (
+                                            <div key={q.id} className="option-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                <div className="option-content" style={{ fontSize: '13px' }}>
+                                                    {q.question_text?.substring(0, 75) || '(Image Question)'}
+                                                </div>
+                                                <button className="btn btn-sm btn-danger" style={{ padding: '2px 8px', fontSize: '11px' }} onClick={() => handleRemoveQuestion(showAssign, q.id)}>
+                                                    ➖ Remove
+                                                </button>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>No questions assigned yet.</p>
+                                )}
+                            </div>
+
+                            {/* Section 2: Available Unassigned Questions */}
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <h4 style={{ fontSize: '14px', color: 'var(--primary)' }}>
+                                        ➕ Available Bank Questions ({unassignedQuestions.length})
+                                    </h4>
+                                    <button
+                                        className="btn btn-success btn-sm"
+                                        onClick={() => handleAddAllQuestions(showAssign)}
+                                        disabled={remainingCapacity <= 0 || unassignedQuestions.length === 0}
+                                    >
+                                        ➕ Add All ({remainingCapacity} max)
+                                    </button>
                                 </div>
-                            );
-                        })()}
-                        <div className="modal-actions">
-                            <button className="btn btn-secondary" onClick={() => setShowAssign(null)}>Close</button>
+
+                                {remainingCapacity <= 0 ? (
+                                    <div className="alert alert-warning" style={{ fontSize: '12px', padding: '10px' }}>
+                                        ⚠️ Exam limit reached ({assignedQuestions.length}/{maxQuestions}). Edit "Total Questions" in Edit Exam to add more.
+                                    </div>
+                                ) : unassignedQuestions.length > 0 ? (
+                                    <div style={{ maxHeight: '200px', overflowY: 'auto', background: 'rgba(255, 255, 255, 0.02)', padding: '8px', borderRadius: '8px' }}>
+                                        {unassignedQuestions.map(q => (
+                                            <div key={q.id} className="option-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                <div className="option-content" style={{ fontSize: '13px' }}>
+                                                    {q.question_text?.substring(0, 75) || '(Image Question)'}
+                                                    <span className={`badge ${q.difficulty === 'easy' ? 'badge-success' : q.difficulty === 'hard' ? 'badge-error' : 'badge-warning'}`} style={{ marginLeft: '8px', fontSize: '10px' }}>
+                                                        {q.difficulty}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    className="btn btn-sm btn-primary"
+                                                    style={{ padding: '2px 8px', fontSize: '11px' }}
+                                                    onClick={() => handleAssignQuestions(showAssign, [q.id])}
+                                                >
+                                                    ➕ Add
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>All bank questions are currently assigned.</p>
+                                )}
+                            </div>
+
+                            <div className="modal-actions" style={{ marginTop: '20px' }}>
+                                <button className="btn btn-secondary" onClick={() => setShowAssign(null)}>Close</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Exams List */}
             <div className="exam-list">

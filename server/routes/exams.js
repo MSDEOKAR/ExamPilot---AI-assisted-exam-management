@@ -149,9 +149,18 @@ router.post('/:id/add-questions', authMiddleware, async (req, res) => {
             await pool.query('UPDATE questions SET exam_id = ? WHERE id = ?', [req.params.id, qid]);
         }
 
-        res.json({ message: `${question_ids.length} questions added to exam` });
+// POST /api/exams/:id/remove-question — Remove/unassign a question from exam
+router.post('/:id/remove-question', authMiddleware, async (req, res) => {
+    try {
+        const { question_id } = req.body;
+        if (!question_id) {
+            return res.status(400).json({ error: 'question_id is required' });
+        }
+
+        await pool.query('UPDATE questions SET exam_id = NULL WHERE id = ? AND exam_id = ?', [question_id, req.params.id]);
+        res.json({ message: 'Question unassigned from exam' });
     } catch (error) {
-        console.error('Add questions error:', error);
+        console.error('Remove question error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });

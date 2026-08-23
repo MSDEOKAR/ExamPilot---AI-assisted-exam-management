@@ -40,6 +40,7 @@ export const deleteExam = (id) => api.delete(`/exams/${id}`);
 export const startExam = (id) => api.post(`/exams/${id}/start`);
 export const completeExam = (id) => api.post(`/exams/${id}/complete`);
 export const addQuestionsToExam = (id, questionIds) => api.post(`/exams/${id}/add-questions`, { question_ids: questionIds });
+export const removeQuestionFromExam = (id, questionId) => api.post(`/exams/${id}/remove-question`, { question_id: questionId });
 
 // ======== STUDENTS ========
 export const registerStudent = (data) => api.post('/students/register', data);
