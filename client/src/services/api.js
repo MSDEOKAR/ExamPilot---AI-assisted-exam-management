@@ -24,6 +24,7 @@ export const registerAdmin = (data) => api.post('/auth/register', data);
 export const getQuestions = (examId) => api.get('/questions', { params: examId ? { exam_id: examId } : {} });
 export const getQuestion = (id) => api.get(`/questions/${id}`);
 export const createQuestion = (formData) => api.post('/questions', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const createBatchQuestions = (data) => api.post('/questions/batch', data);
 export const updateQuestion = (id, formData) => api.put(`/questions/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const deleteQuestion = (id) => api.delete(`/questions/${id}`);
 export const ocrImage = (formData) => api.post('/questions/ocr', formData, { headers: { 'Content-Type': 'multipart/form-data' } });

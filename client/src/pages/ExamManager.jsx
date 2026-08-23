@@ -75,9 +75,8 @@ export default function ExamManager() {
     const handleAssignQuestions = async (examId, questionIds) => {
         try {
             await addQuestionsToExam(examId, questionIds);
-            setMessage({ type: 'success', text: `${questionIds.length} Questions assigned!` });
-            setShowAssign(null);
-            loadData();
+            setMessage({ type: 'success', text: `✅ ${questionIds.length} question(s) added to exam!` });
+            await loadData();
         } catch (err) {
             setMessage({ type: 'error', text: 'Failed to assign questions' });
         }
@@ -160,10 +159,11 @@ export default function ExamManager() {
                                 ➕ Add All Unassigned
                             </button>
                         </div>
+                        {message.text && <div className={`alert alert-${message.type}`} style={{ marginBottom: '16px' }}>{message.text}</div>}
                         <p style={{ marginBottom: '16px', color: 'var(--text-muted)' }}>Select questions from the bank to add:</p>
                         {(() => {
                             const unassigned = questions.filter(q => !q.exam_id || q.exam_id !== showAssign);
-                            if (unassigned.length === 0) return <p>No unassigned questions available.</p>;
+                            if (unassigned.length === 0) return <p>All available questions are assigned!</p>;
                             return (
                                 <div style={{ maxHeight: '300px', overflow: 'auto' }}>
                                     {unassigned.map(q => (

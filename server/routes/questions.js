@@ -4,6 +4,7 @@ const pool = require('../config/db');
 const upload = require('../middleware/upload');
 const authMiddleware = require('../middleware/auth');
 const { tagQuestion, detectDifficulty, suggestAnswer, splitQuestions, parseAnswerKey } = require('../utils/ai');
+const { extractText } = require('../utils/ocr');
 const path = require('path');
 
 // POST /api/questions — Create question with options
@@ -237,4 +238,58 @@ router.post('/batch-split', authMiddleware, async (req, res) => {
     }
 });
 
+// POST /api/questions/batch — Save multiple questions in bulk
+router.post('/batch', authMiddleware, async (req, res) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        const { questions, exam_id } = req.body;
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.status(400).json({ error: 'No questions provided' });
+        }
+
+        let insertedCount = 0;
+        for (const q of questions) {
+            const questionText = q.question_text || q.question || null;
+            if (!questionText) continue;
+
+            const targetExamId = q.exam_id || exam_id || null;
+            const tags = Array.isArray(q.ai_tags) ? q.ai_tags.join(', ') : (q.tags || 'General');
+            const difficulty = q.difficulty || q.ai_difficulty || 'medium';
+
+            const [qResult] = await conn.query(
+                'INSERT INTO questions (exam_id, question_text, difficulty, tags) VALUES (?, ?, ?, ?)',
+                [targetExamId, questionText, difficulty, tags]
+            );
+            const questionId = qResult.insertId;
+
+            const options = q.options || [];
+            const correctOptIdx = (q.correct_option !== undefined && q.correct_option !== null && q.correct_option >= 0)
+                ? parseInt(q.correct_option)
+                : (q.ai_suggested_answer !== undefined && q.ai_suggested_answer >= 0 ? parseInt(q.ai_suggested_answer) : 0);
+
+            for (let i = 0; i < options.length; i++) {
+                const optText = typeof options[i] === 'object' && options[i] !== null ? (options[i].option_text || options[i].text || '') : options[i].toString();
+                const isCorrect = (i === correctOptIdx) ? 1 : 0;
+
+                await conn.query(
+                    'INSERT INTO options (question_id, option_text, is_correct, option_order) VALUES (?, ?, ?, ?)',
+                    [questionId, optText, isCorrect, i]
+                );
+            }
+            insertedCount++;
+        }
+
+        await conn.commit();
+        res.status(201).json({ message: 'Batch questions created successfully', count: insertedCount });
+    } catch (error) {
+        await conn.rollback();
+        console.error('Batch create questions error:', error);
+        res.status(500).json({ error: 'Server error during batch creation' });
+    } finally {
+        conn.release();
+    }
+});
+
 module.exports = router;
+

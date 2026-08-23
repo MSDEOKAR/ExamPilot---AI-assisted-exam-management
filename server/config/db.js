@@ -77,6 +77,31 @@ function getPool() {
                 const insertId = rows.length > 0 && rows[0] && rows[0].id !== undefined ? rows[0].id : null;
                 const resultHeader = { insertId, rowCount: res.rowCount || 0 };
                 return [rows, resultHeader];
+            },
+            getConnection: async () => {
+                const client = await pgPool.connect();
+                return {
+                    beginTransaction: async () => client.query('BEGIN'),
+                    commit: async () => client.query('COMMIT'),
+                    rollback: async () => client.query('ROLLBACK'),
+                    release: () => client.release(),
+                    query: async (sql, params = []) => {
+                        let paramIndex = 1;
+                        let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
+                        pgSql = pgSql.replace(/NOW\(\)/gi, 'CURRENT_TIMESTAMP');
+
+                        if (pgSql.trim().toUpperCase().startsWith('INSERT') && !pgSql.toUpperCase().includes('RETURNING')) {
+                            pgSql += ' RETURNING id';
+                        }
+
+                        const rawRes = await client.query(pgSql, params);
+                        const res = Array.isArray(rawRes) ? (rawRes[rawRes.length - 1] || {}) : (rawRes || {});
+                        const rows = Array.isArray(res.rows) ? res.rows : [];
+                        const insertId = rows.length > 0 && rows[0] && rows[0].id !== undefined ? rows[0].id : null;
+                        const resultHeader = { insertId, rowCount: res.rowCount || 0 };
+                        return [rows, resultHeader];
+                    }
+                };
             }
         };
     } else {
@@ -101,6 +126,20 @@ function getPool() {
                 const res = await mysqlPool.query(sql, params);
                 const rows = Array.isArray(res[0]) ? res[0] : [];
                 return [rows, res[1]];
+            },
+            getConnection: async () => {
+                const conn = await mysqlPool.getConnection();
+                return {
+                    beginTransaction: async () => conn.beginTransaction(),
+                    commit: async () => conn.commit(),
+                    rollback: async () => conn.rollback(),
+                    release: () => conn.release(),
+                    query: async (sql, params) => {
+                        const res = await conn.query(sql, params);
+                        const rows = Array.isArray(res[0]) ? res[0] : [];
+                        return [rows, res[1]];
+                    }
+                };
             }
         };
     }
@@ -114,5 +153,8 @@ module.exports = {
     },
     query: async (...args) => {
         return getPool().pool.query(...args);
+    },
+    getConnection: async () => {
+        return getPool().pool.getConnection();
     }
 };

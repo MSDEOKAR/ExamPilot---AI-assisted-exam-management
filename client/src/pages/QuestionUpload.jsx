@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { createQuestion, getQuestions, deleteQuestion, getExams } from '../services/api';
+import { createQuestion, createBatchQuestions, getQuestions, deleteQuestion, getExams } from '../services/api';
 import { FiUpload, FiTrash2, FiEdit3, FiFileText, FiSave, FiCheckCircle, FiRefreshCw } from 'react-icons/fi';
 
 const API_URL = 'http://localhost:5000';
@@ -158,7 +158,6 @@ export default function QuestionUpload() {
             formData.append('difficulty', item.ai_difficulty || 'medium');
             formData.append('tags', item.ai_tags?.join(', ') || 'General');
 
-            // Ensure correct_option is passed both as a field and embedded in options for redundancy
             const finalAnsIdx = (item.ai_suggested_answer !== undefined && item.ai_suggested_answer >= 0) ? item.ai_suggested_answer : 0;
             formData.append('correct_option', finalAnsIdx.toString());
 
@@ -179,22 +178,36 @@ export default function QuestionUpload() {
             const newBatch = [...batchItems];
             newBatch[index].saved = true;
             setBatchItems(newBatch);
-            loadData();
+            await loadData();
+            setMessage({ type: 'success', text: '✅ 1 question added successfully!' });
         } catch (err) {
             console.error(err);
-            alert('Failed to save item ' + (index + 1));
+            setMessage({ type: 'error', text: `Failed to save question ${index + 1}` });
         }
     };
 
     const handleSaveAllBatch = async () => {
-        setLoading(true);
-        for (let i = 0; i < batchItems.length; i++) {
-            if (!batchItems[i].saved) {
-                await handleSaveBatchItem(i);
-            }
+        const unsavedItems = batchItems.filter(item => !item.saved);
+        if (unsavedItems.length === 0) {
+            setMessage({ type: 'info', text: 'All questions in batch are already saved.' });
+            return;
         }
-        setLoading(false);
-        setMessage({ type: 'success', text: 'Batch saved successfully!' });
+
+        setLoading(true);
+        try {
+            const res = await createBatchQuestions({ questions: unsavedItems, exam_id: selectedExam });
+            const savedCount = res.data?.count || unsavedItems.length;
+
+            const newBatch = batchItems.map(item => ({ ...item, saved: true }));
+            setBatchItems(newBatch);
+            await loadData();
+            setMessage({ type: 'success', text: `✅ ${savedCount} question(s) added successfully!` });
+        } catch (err) {
+            console.error('Save all batch error:', err);
+            setMessage({ type: 'error', text: 'Failed to save batch questions. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAISuggest = async () => {
@@ -202,7 +215,6 @@ export default function QuestionUpload() {
         setLoading(true);
         try {
             const token = localStorage.getItem('adminToken');
-            // We use the batch-split endpoint with a single question block
             const res = await fetch(`${API_URL}/api/questions/batch-split`, {
                 method: 'POST',
                 headers: {
@@ -265,7 +277,7 @@ export default function QuestionUpload() {
                 setBatchItems(newBatch);
             }
 
-            setMessage({ type: 'success', text: 'Question saved!' });
+            setMessage({ type: 'success', text: formItem.id ? '✅ Question updated successfully!' : '✅ 1 question added successfully!' });
             setViewMode(batchItems.length > 0 ? 'batch' : 'list');
             loadData();
         } catch (err) {
