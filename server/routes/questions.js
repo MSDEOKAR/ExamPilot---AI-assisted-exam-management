@@ -253,29 +253,42 @@ router.post('/batch', authMiddleware, async (req, res) => {
             const questionText = q.question_text || q.question || null;
             if (!questionText) continue;
 
-            const targetExamId = q.exam_id || exam_id || null;
+            let targetExamId = q.exam_id || exam_id || null;
+            if (!targetExamId || targetExamId === 'null' || targetExamId === 'undefined') {
+                targetExamId = null;
+            } else {
+                targetExamId = parseInt(targetExamId, 10);
+                if (isNaN(targetExamId)) targetExamId = null;
+            }
+
             const tags = Array.isArray(q.ai_tags) ? q.ai_tags.join(', ') : (q.tags || 'General');
             const difficulty = q.difficulty || q.ai_difficulty || 'medium';
 
-            const [qResult] = await conn.query(
+            const [rows, header] = await conn.query(
                 'INSERT INTO questions (exam_id, question_text, difficulty, tags) VALUES (?, ?, ?, ?)',
                 [targetExamId, questionText, difficulty, tags]
             );
-            const questionId = qResult.insertId;
+
+            let questionId = header && header.insertId ? header.insertId : null;
+            if (!questionId && Array.isArray(rows) && rows.length > 0 && rows[0] && rows[0].id) {
+                questionId = rows[0].id;
+            }
 
             const options = q.options || [];
             const correctOptIdx = (q.correct_option !== undefined && q.correct_option !== null && q.correct_option >= 0)
                 ? parseInt(q.correct_option)
                 : (q.ai_suggested_answer !== undefined && q.ai_suggested_answer >= 0 ? parseInt(q.ai_suggested_answer) : 0);
 
-            for (let i = 0; i < options.length; i++) {
-                const optText = typeof options[i] === 'object' && options[i] !== null ? (options[i].option_text || options[i].text || '') : options[i].toString();
-                const isCorrect = (i === correctOptIdx) ? 1 : 0;
+            if (questionId) {
+                for (let i = 0; i < options.length; i++) {
+                    const optText = typeof options[i] === 'object' && options[i] !== null ? (options[i].option_text || options[i].text || '') : options[i].toString();
+                    const isCorrect = (i === correctOptIdx) ? 1 : 0;
 
-                await conn.query(
-                    'INSERT INTO options (question_id, option_text, is_correct, option_order) VALUES (?, ?, ?, ?)',
-                    [questionId, optText, isCorrect, i]
-                );
+                    await conn.query(
+                        'INSERT INTO options (question_id, option_text, is_correct, option_order) VALUES (?, ?, ?, ?)',
+                        [questionId, optText, isCorrect, i]
+                    );
+                }
             }
             insertedCount++;
         }
@@ -285,7 +298,7 @@ router.post('/batch', authMiddleware, async (req, res) => {
     } catch (error) {
         await conn.rollback();
         console.error('Batch create questions error:', error);
-        res.status(500).json({ error: 'Server error during batch creation' });
+        res.status(500).json({ error: error.message || 'Server error during batch creation' });
     } finally {
         conn.release();
     }

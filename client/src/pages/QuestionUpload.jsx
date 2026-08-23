@@ -203,8 +203,51 @@ export default function QuestionUpload() {
             await loadData();
             setMessage({ type: 'success', text: `✅ ${savedCount} question(s) added successfully!` });
         } catch (err) {
-            console.error('Save all batch error:', err);
-            setMessage({ type: 'error', text: 'Failed to save batch questions. Please try again.' });
+            console.error('Batch create endpoint error, running item fallback:', err);
+            let savedCount = 0;
+            const newBatch = [...batchItems];
+            for (let i = 0; i < batchItems.length; i++) {
+                if (!batchItems[i].saved) {
+                    try {
+                        const item = batchItems[i];
+                        const formData = new FormData();
+                        formData.append('question_text', item.question_text);
+                        if (selectedExam) formData.append('exam_id', selectedExam);
+                        formData.append('difficulty', item.ai_difficulty || 'medium');
+                        formData.append('tags', item.ai_tags?.join(', ') || 'General');
+
+                        const finalAnsIdx = (item.ai_suggested_answer !== undefined && item.ai_suggested_answer >= 0) ? item.ai_suggested_answer : 0;
+                        formData.append('correct_option', finalAnsIdx.toString());
+
+                        const ops = item.options.map((text, idx) => ({
+                            option_text: text,
+                            is_correct: idx === finalAnsIdx
+                        }));
+                        while (ops.length < 4) {
+                            ops.push({
+                                option_text: '',
+                                is_correct: ops.length === finalAnsIdx
+                            });
+                        }
+                        formData.append('options', JSON.stringify(ops));
+
+                        await createQuestion(formData);
+                        newBatch[i].saved = true;
+                        savedCount++;
+                    } catch (singleErr) {
+                        console.error(`Failed to save item ${i + 1}:`, singleErr);
+                    }
+                }
+            }
+
+            setBatchItems(newBatch);
+            await loadData();
+            if (savedCount > 0) {
+                setMessage({ type: 'success', text: `✅ ${savedCount} question(s) added successfully!` });
+            } else {
+                const errMsg = err.response?.data?.error || err.message || 'Failed to save batch questions.';
+                setMessage({ type: 'error', text: `Failed to save batch questions: ${errMsg}` });
+            }
         } finally {
             setLoading(false);
         }
