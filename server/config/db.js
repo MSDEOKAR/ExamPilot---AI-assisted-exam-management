@@ -5,10 +5,30 @@ require('dotenv').config();
 let activePool = null;
 let activeIsPg = false;
 
+function repairConnectionString(url) {
+    if (!url) return '';
+    // If password contains unencoded '@', encode it automatically
+    // Matches postgres://user:password_with_at@host:port/db
+    const lastAt = url.lastIndexOf('@');
+    const firstColonAfterProto = url.indexOf(':', url.indexOf('://') + 3);
+    if (firstColonAfterProto !== -1 && lastAt !== -1 && lastAt > firstColonAfterProto) {
+        const protoAndUser = url.substring(0, firstColonAfterProto + 1);
+        const rawPass = url.substring(firstColonAfterProto + 1, lastAt);
+        const hostAndRest = url.substring(lastAt);
+        // Only encode if rawPass actually contains '@' or unencoded special chars
+        if (rawPass.includes('@')) {
+            const encodedPass = encodeURIComponent(rawPass);
+            return protoAndUser + encodedPass + hostAndRest;
+        }
+    }
+    return url;
+}
+
 function getPool() {
     if (activePool) return { pool: activePool, isPg: activeIsPg };
 
-    const dbUrl = (process.env.DATABASE_URL || '').trim();
+    const rawDbUrl = (process.env.DATABASE_URL || '').trim();
+    const dbUrl = repairConnectionString(rawDbUrl);
     const dbHost = (process.env.DB_HOST || '').trim();
     const dbPort = String(process.env.DB_PORT || '').trim();
 
