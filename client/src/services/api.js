@@ -21,7 +21,7 @@ export const loginAdmin = (data) => api.post('/auth/login', data);
 export const registerAdmin = (data) => api.post('/auth/register', data);
 
 // ======== QUESTIONS ========
-export const getQuestions = (examId) => api.get('/questions', { params: examId ? { exam_id: examId } : {} });
+export const getQuestions = (examId, limit) => api.get('/questions', { params: { ...(examId ? { exam_id: examId } : {}), ...(limit ? { limit } : {}) } });
 export const getQuestion = (id) => api.get(`/questions/${id}`);
 export const createQuestion = (formData) => api.post('/questions', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const createBatchQuestions = (data) => api.post('/questions/batch', data);

@@ -94,10 +94,10 @@ router.post('/', authMiddleware, upload.fields([
     }
 });
 
-// GET /api/questions — List all questions
+// GET /api/questions — List all questions (bulk optimized)
 router.get('/', async (req, res) => {
     try {
-        const { exam_id } = req.query;
+        const { exam_id, limit } = req.query;
         let query = 'SELECT * FROM questions';
         const params = [];
 
@@ -107,13 +107,32 @@ router.get('/', async (req, res) => {
         }
 
         query += ' ORDER BY created_at DESC';
+        if (limit) {
+            query += ' LIMIT ?';
+            params.push(parseInt(limit, 10));
+        }
+
         const [questions] = await pool.query(query, params);
 
+        if (!questions || questions.length === 0) {
+            return res.json([]);
+        }
+
+        const questionIds = questions.map(q => q.id);
+        const placeholders = questionIds.map(() => '?').join(',');
+        const [allOptions] = await pool.query(
+            `SELECT * FROM options WHERE question_id IN (${placeholders}) ORDER BY option_order`,
+            questionIds
+        );
+
+        const optionsMap = {};
+        for (const opt of allOptions) {
+            if (!optionsMap[opt.question_id]) optionsMap[opt.question_id] = [];
+            optionsMap[opt.question_id].push(opt);
+        }
+
         for (let q of questions) {
-            const [opts] = await pool.query(
-                'SELECT * FROM options WHERE question_id = ? ORDER BY option_order', [q.id]
-            );
-            q.options = opts;
+            q.options = optionsMap[q.id] || [];
         }
 
         res.json(questions);

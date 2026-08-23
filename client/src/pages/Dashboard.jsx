@@ -19,7 +19,7 @@ export default function Dashboard() {
             const [sRes, eRes, qRes] = await Promise.all([
                 getDashboardStats(),
                 getExams(),
-                getQuestions()
+                getQuestions(null, 5)
             ]);
             setStats(sRes.data);
             setExams(eRes.data || []);
