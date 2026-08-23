@@ -38,7 +38,7 @@ if (isPg) {
             let paramIndex = 1;
             let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
 
-            // Handle MySQL ON DUPLICATE KEY UPDATE / JSON / NOW() syntax adaptations if needed
+            // Adapt MySQL syntax to PostgreSQL
             pgSql = pgSql.replace(/NOW\(\)/gi, 'CURRENT_TIMESTAMP');
 
             // Handle AUTO_INCREMENT / insertId compatibility
@@ -46,10 +46,14 @@ if (isPg) {
                 pgSql += ' RETURNING id';
             }
 
-            const res = await pgPool.query(pgSql, params);
-            const insertId = res.rows.length > 0 && res.rows[0].id !== undefined ? res.rows[0].id : null;
-            const resultHeader = { insertId, rowCount: res.rowCount };
-            return [res.rows, resultHeader];
+            const rawRes = await pgPool.query(pgSql, params);
+
+            // In pg, multi-statement queries return an array of result objects
+            const res = Array.isArray(rawRes) ? (rawRes[rawRes.length - 1] || { rows: [], rowCount: 0 }) : rawRes;
+            const rows = res.rows || [];
+            const insertId = rows.length > 0 && rows[0].id !== undefined ? rows[0].id : null;
+            const resultHeader = { insertId, rowCount: res.rowCount || 0 };
+            return [rows, resultHeader];
         }
     };
 } else {
