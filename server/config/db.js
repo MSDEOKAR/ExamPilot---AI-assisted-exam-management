@@ -2,17 +2,20 @@ const mysql = require('mysql2/promise');
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const dbHost = process.env.DB_HOST || '';
-const dbUrl = process.env.DATABASE_URL || '';
-const dbPort = parseInt(process.env.DB_PORT || '3306', 10);
+const dbUrl = (process.env.DATABASE_URL || '').trim();
+const dbHost = (process.env.DB_HOST || '').trim();
+const dbPort = String(process.env.DB_PORT || '').trim();
 
-const isPg = dbUrl.startsWith('postgres') ||
-    dbUrl.startsWith('postgresql') ||
+// If DATABASE_URL is set or host/port indicates Postgres/Supabase/Neon, use PG Pool
+const isPg = Boolean(
+    dbUrl ||
     dbHost.includes('supabase') ||
     dbHost.includes('neon') ||
-    dbPort === 5432 ||
-    dbPort === 6543 ||
-    process.env.DB_TYPE === 'postgres';
+    dbHost.includes('postgres') ||
+    dbPort === '5432' ||
+    dbPort === '6543' ||
+    process.env.DB_TYPE === 'postgres'
+);
 
 let pool;
 
@@ -22,8 +25,8 @@ if (isPg) {
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false }
     } : {
-        host: process.env.DB_HOST,
-        port: parseInt(process.env.DB_PORT || '5432', 10),
+        host: dbHost,
+        port: parseInt(dbPort || '5432', 10),
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME || 'postgres',
@@ -49,9 +52,9 @@ if (isPg) {
             const rawRes = await pgPool.query(pgSql, params);
 
             // In pg, multi-statement queries return an array of result objects
-            const res = Array.isArray(rawRes) ? (rawRes[rawRes.length - 1] || { rows: [], rowCount: 0 }) : rawRes;
-            const rows = res.rows || [];
-            const insertId = rows.length > 0 && rows[0].id !== undefined ? rows[0].id : null;
+            const res = Array.isArray(rawRes) ? (rawRes[rawRes.length - 1] || {}) : (rawRes || {});
+            const rows = Array.isArray(res.rows) ? res.rows : [];
+            const insertId = rows.length > 0 && rows[0] && rows[0].id !== undefined ? rows[0].id : null;
             const resultHeader = { insertId, rowCount: res.rowCount || 0 };
             return [rows, resultHeader];
         }
@@ -59,15 +62,15 @@ if (isPg) {
 } else {
     console.log('🐬 Initializing MySQL connection pool...');
     pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        port: dbPort,
+        host: dbHost || 'localhost',
+        port: parseInt(dbPort || '3306', 10),
         user: process.env.DB_USER || 'root',
         password: process.env.DB_PASSWORD || '',
         database: process.env.DB_NAME || 'mock_exam_db',
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        ssl: (process.env.DB_SSL === 'true' || (process.env.DB_HOST && process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1'))
+        ssl: (process.env.DB_SSL === 'true' || (dbHost && dbHost !== 'localhost' && dbHost !== '127.0.0.1'))
             ? { rejectUnauthorized: false }
             : undefined
     });
