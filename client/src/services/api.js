@@ -27,6 +27,7 @@ export const createQuestion = (formData) => api.post('/questions', formData, { h
 export const createBatchQuestions = (data) => api.post('/questions/batch', data);
 export const updateQuestion = (id, formData) => api.put(`/questions/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const deleteQuestion = (id) => api.delete(`/questions/${id}`);
+export const deleteAllQuestions = () => api.delete('/questions/all');
 export const ocrImage = (formData) => api.post('/questions/ocr', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const aiAnalyze = (data) => api.post('/questions/ai-analyze', data);
 

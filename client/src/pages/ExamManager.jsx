@@ -204,16 +204,14 @@ export default function ExamManager() {
 
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {(exam.status === 'draft' || exam.status === 'scheduled') && (
-                                <>
-                                    <button className="btn btn-success btn-sm" onClick={() => handleStart(exam.id)}>🚀 Upload Exam</button>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => setShowAssign(exam.id)}>📎 Add Questions</button>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(exam)}>✏️ Edit</button>
-                                </>
+                                <button className="btn btn-success btn-sm" onClick={() => handleStart(exam.id)}>🚀 Activate Exam</button>
                             )}
                             {exam.status === 'active' && (
-                                <button className="btn btn-secondary btn-sm" onClick={() => handleComplete(exam.id)}>⏹️ End Exam</button>
+                                <button className="btn btn-warning btn-sm" onClick={() => handleComplete(exam.id)}>⏹️ End Exam</button>
                             )}
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(exam.id)}>🗑️</button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => setShowAssign(exam.id)}>📎 Add Questions</button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(exam)}>✏️ Edit</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(exam.id)}>🗑️ Delete Exam</button>
                         </div>
                     </div>
                 )) : (

@@ -196,6 +196,17 @@ router.put('/:id', authMiddleware, upload.fields([
     }
 });
 
+// DELETE /api/questions/all — Delete all questions in bank
+router.delete('/all', authMiddleware, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM questions');
+        res.json({ message: 'All questions deleted successfully' });
+    } catch (error) {
+        console.error('Delete all questions error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // DELETE /api/questions/:id
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {

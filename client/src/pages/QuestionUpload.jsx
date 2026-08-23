@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { createQuestion, createBatchQuestions, getQuestions, deleteQuestion, getExams } from '../services/api';
+import { createQuestion, createBatchQuestions, getQuestions, deleteQuestion, deleteAllQuestions, getExams } from '../services/api';
 import { FiUpload, FiTrash2, FiEdit3, FiFileText, FiSave, FiCheckCircle, FiRefreshCw } from 'react-icons/fi';
 
 const API_URL = 'http://localhost:5000';
@@ -76,7 +76,8 @@ export default function QuestionUpload() {
             if (data.questions && data.questions.length > 0) {
                 setBatchItems(data.questions.map(q => ({
                     ...q,
-                    saved: false
+                    saved: false,
+                    exam_id: selectedExam
                 })));
                 setMessage({ type: 'success', text: `AI Split: Detected ${data.questions.length} questions!` });
             } else {
@@ -100,10 +101,7 @@ export default function QuestionUpload() {
 
             const transformed = questionsArray.map(q => {
                 let answerIdx = -1;
-                // Support multiple answer key names
                 const rawAns = q.answer !== undefined ? q.answer : (q.ans !== undefined ? q.ans : q.ai_suggested_answer);
-
-                // Support multiple option key names
                 const rawOptions = Array.isArray(q.options) ? q.options : (Array.isArray(q.option) ? q.option : []);
 
                 if (rawAns !== undefined && rawAns !== null) {
@@ -111,17 +109,14 @@ export default function QuestionUpload() {
                         answerIdx = rawAns;
                     } else if (typeof rawAns === 'string') {
                         const trimmed = rawAns.trim();
-                        // Handle "A", "(A)", "Option A", "Ans: A"
                         const letterMatch = trimmed.match(/(?:^|Option|Ans|Answer)[:\s\-\.]*\(?([A-E])\)?$/i);
                         if (letterMatch) {
                             answerIdx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
                         } else {
-                            // Handle "1", "(1)", "Ans: 1"
                             const numMatch = trimmed.match(/(?:^|Option|Ans|Answer)[:\s\-\.]*\(?([1-5])\)?$/i);
                             if (numMatch) {
                                 answerIdx = parseInt(numMatch[1]) - 1;
                             } else {
-                                // Try to match option text directly
                                 const textIdx = rawOptions.findIndex(opt => opt && opt.toString().toLowerCase() === trimmed.toLowerCase());
                                 if (textIdx !== -1) answerIdx = textIdx;
                             }
@@ -135,7 +130,8 @@ export default function QuestionUpload() {
                     ai_tags: Array.isArray(q.tags) ? q.tags : (q.ai_tags || ['Imported']),
                     ai_difficulty: q.difficulty || q.ai_difficulty || 'medium',
                     ai_suggested_answer: answerIdx,
-                    saved: false
+                    saved: false,
+                    exam_id: selectedExam
                 };
             });
 
@@ -334,9 +330,21 @@ export default function QuestionUpload() {
         if (!confirm('Delete this question?')) return;
         try {
             await deleteQuestion(id);
+            setMessage({ type: 'success', text: 'Question deleted successfully!' });
             loadData();
         } catch (err) {
-            alert('Delete failed');
+            setMessage({ type: 'error', text: 'Delete failed' });
+        }
+    };
+
+    const handleDeleteAll = async () => {
+        if (!confirm('⚠️ Are you sure you want to delete ALL questions in the question bank? This action cannot be undone.')) return;
+        try {
+            await deleteAllQuestions();
+            setMessage({ type: 'success', text: 'All questions deleted successfully!' });
+            loadData();
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Failed to delete all questions.' });
         }
     };
 
@@ -361,14 +369,14 @@ export default function QuestionUpload() {
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <select
                         className="form-select"
-                        style={{ margin: 0, width: '200px' }}
+                        style={{ margin: 0, width: '220px' }}
                         value={selectedExam}
                         onChange={(e) => setSelectedExam(e.target.value)}
                     >
-                        <option value="">— Select Target Exam —</option>
+                        <option value="">— Target Exam (All) —</option>
                         {exams.map(ex => <option key={ex.id} value={ex.id}>{ex.title}</option>)}
                     </select>
 
@@ -379,6 +387,17 @@ export default function QuestionUpload() {
                     >
                         <FiUpload /> Batch Paste Questions
                     </button>
+
+                    {questions.length > 0 && (
+                        <button
+                            className="btn btn-danger"
+                            onClick={handleDeleteAll}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                            title="Delete all questions in bank"
+                        >
+                            <FiTrash2 /> Delete All
+                        </button>
+                    )}
                 </div>
             </div>
 
